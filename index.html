@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Tree</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <h1>Family Tree</h1>
+  </header>
+
+  <main>
+    <div id="tree-container">
+      <svg id="connector-svg" aria-hidden="true"></svg>
+      <div id="tree-rows"></div>
+    </div>
+  </main>
+
+  <!-- Add Member Modal -->
+  <div id="modal-overlay" class="hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div id="modal">
+      <h2 id="modal-title">Add Family Member</h2>
+      <p id="modal-subtitle"></p>
+      <form id="member-form" novalidate>
+        <label for="input-name">Name <span class="required">*</span></label>
+        <input type="text" id="input-name" placeholder="Full name" autocomplete="off" required>
+        <span id="name-error" class="field-error hidden">Name is required.</span>
+
+        <label for="input-profession">Profession</label>
+        <input type="text" id="input-profession" placeholder="e.g. Farmer (optional)" autocomplete="off">
+
+        <div class="modal-actions">
+          <button type="button" id="modal-cancel">Cancel</button>
+          <button type="submit" id="modal-submit">Add Member</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

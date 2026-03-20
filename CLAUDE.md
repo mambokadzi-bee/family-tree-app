@@ -46,12 +46,25 @@ The app is a single-page vanilla JS application split across three files with no
 
 ## Git & GitHub Workflow
 
-After every change: commit with a clean message and push to `origin/main`.
+**Commit and push after every meaningful change** — do not batch multiple features into one commit or leave work uncommitted at the end of a session. The goal is that the GitHub remote always reflects the current state of the project.
+
+Commit message format:
+```
+type: short description
+
+# types: feat, fix, docs, style, refactor
+```
 
 ```bash
 git add <files>
 git commit -m "type: short description"
 git push
 ```
+
+Commit granularity guidelines:
+- After adding or modifying a feature (e.g. new UI element, data function)
+- After a bug fix
+- After any change to `CLAUDE.md` or project documentation
+- Before and after a significant refactor
 
 Remote: `https://github.com/mambokadzi-bee/family-tree-app`

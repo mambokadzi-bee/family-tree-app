@@ -9,7 +9,23 @@
 <body>
 
   <header>
-    <h1>Family Tree</h1>
+    <div id="header-top">
+      <div id="family-name-wrap">
+        <div id="family-name" contenteditable="true" spellcheck="false" title="Click to edit family name">Family Tree</div>
+        <span class="edit-hint">click to edit</span>
+      </div>
+      <div id="header-meta">
+        <div class="meta-field">
+          <label for="created-by-input">Created by <span class="required">*</span></label>
+          <input type="text" id="created-by-input" placeholder="Your name (required)" autocomplete="off">
+          <span id="created-by-error" class="meta-error hidden">This field is required.</span>
+        </div>
+        <div class="meta-field">
+          <label>Last Date of Update</label>
+          <span id="last-updated-display">—</span>
+        </div>
+      </div>
+    </div>
   </header>
 
   <main>

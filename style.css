@@ -145,18 +145,27 @@ main {
 
 #tree-rows {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  justify-content: center;
+  padding: 1rem 2rem 2rem;
+  overflow-x: auto;
 }
 
-/* ── Generation rows ────────────────────────────────── */
-.generation-row {
+/* ── Nested tree layout ─────────────────────────────── */
+/* Each node + its subtree live in a flex-column group.  */
+/* Children are a flex-row placed directly below parent. */
+.tree-node-group {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tree-children {
+  display: flex;
+  flex-direction: row;
   align-items: flex-start;
-  gap: 1.5rem;
-  padding: 1rem 1rem 2.5rem;
-  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+  padding-top: 2.5rem; /* room for add-child button + connector lines */
 }
 
 /* ── Person nodes ───────────────────────────────────── */
@@ -550,9 +559,8 @@ main {
   #header-meta {
     gap: 1rem;
   }
-  .generation-row {
+  .tree-children {
     gap: 0.75rem;
-    padding-bottom: 2rem;
   }
   .person-node {
     min-width: 100px;

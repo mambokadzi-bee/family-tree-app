@@ -219,32 +219,32 @@
   var svg = document.getElementById('connector-svg');
   var treeContainer = document.getElementById('tree-container');
 
-  // Build a DFS-ordered list per generation so children always follow their parent's position
-  function getOrderedMembersByGeneration() {
-    var childrenOf = {};
-    for (var id in data.members) {
-      var m = data.members[id];
-      var pid = m.parentId || '__root__';
-      if (!childrenOf[pid]) childrenOf[pid] = [];
-      childrenOf[pid].push(m);
+  // Recursively render a member and all its descendants as nested flex groups.
+  // Children are placed directly below their parent and move with it automatically.
+  function renderSubtree(memberId) {
+    var member = data.members[memberId];
+
+    var group = document.createElement('div');
+    group.className = 'tree-node-group';
+
+    var siblings = getSiblings(member);
+    var sibIdx = -1;
+    for (var i = 0; i < siblings.length; i++) {
+      if (siblings[i].id === memberId) { sibIdx = i; break; }
     }
-    for (var key in childrenOf) {
-      childrenOf[key].sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    group.appendChild(createNodeEl(member, sibIdx === 0, sibIdx === siblings.length - 1));
+
+    var children = getChildren(memberId);
+    if (children.length > 0) {
+      var childRow = document.createElement('div');
+      childRow.className = 'tree-children';
+      children.forEach(function (child) {
+        childRow.appendChild(renderSubtree(child.id));
+      });
+      group.appendChild(childRow);
     }
 
-    var byGen = {};
-
-    function walk(memberId) {
-      var m = data.members[memberId];
-      if (!byGen[m.generation]) byGen[m.generation] = [];
-      byGen[m.generation].push(m);
-      var children = childrenOf[memberId] || [];
-      children.forEach(function (child) { walk(child.id); });
-    }
-
-    var roots = childrenOf['__root__'] || [];
-    roots.forEach(function (r) { walk(r.id); });
-    return byGen;
+    return group;
   }
 
   function renderTree() {
@@ -256,28 +256,13 @@
       return;
     }
 
-    var byGen = getOrderedMembersByGeneration();
+    if (data.rootId && data.members[data.rootId]) {
+      treeRows.appendChild(renderSubtree(data.rootId));
+    }
+
     var nodeEls = {};
-
-    var gens = Object.keys(byGen).map(Number).sort(function (a, b) { return a - b; });
-
-    gens.forEach(function (g) {
-      var row = document.createElement('div');
-      row.className = 'generation-row';
-      row.dataset.generation = g;
-
-      byGen[g].forEach(function (member) {
-        var siblings = getSiblings(member);
-        var sibIdx = -1;
-        for (var i = 0; i < siblings.length; i++) {
-          if (siblings[i].id === member.id) { sibIdx = i; break; }
-        }
-        var node = createNodeEl(member, sibIdx === 0, sibIdx === siblings.length - 1);
-        row.appendChild(node);
-        nodeEls[member.id] = node;
-      });
-
-      treeRows.appendChild(row);
+    treeRows.querySelectorAll('.person-node').forEach(function (el) {
+      nodeEls[el.dataset.id] = el;
     });
 
     requestAnimationFrame(function () {

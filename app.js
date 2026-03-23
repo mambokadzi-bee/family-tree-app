@@ -85,6 +85,72 @@
     return max + 1;
   }
 
+  // ── Tree helpers ─────────────────────────────────────
+  function getChildren(parentId) {
+    var result = [];
+    for (var id in data.members) {
+      if (data.members[id].parentId === parentId) result.push(data.members[id]);
+    }
+    result.sort(function (a, b) { return (a.order || 0) - (b.order || 0); });
+    return result;
+  }
+
+  // Iterative ancestor check — avoids stack overflow and handles cycles
+  function isDescendantOf(nodeId, potentialAncestorId) {
+    var current = data.members[nodeId];
+    var visited = {};
+    while (current && current.parentId !== null) {
+      if (visited[current.id]) break;
+      visited[current.id] = true;
+      if (current.parentId === potentialAncestorId) return true;
+      current = data.members[current.parentId];
+    }
+    return false;
+  }
+
+  function getSubtreeDepth(memberId) {
+    var children = getChildren(memberId);
+    if (children.length === 0) return 1;
+    var max = 0;
+    children.forEach(function (c) {
+      var d = getSubtreeDepth(c.id);
+      if (d > max) max = d;
+    });
+    return 1 + max;
+  }
+
+  function updateGenerations(memberId, newGeneration) {
+    var member = data.members[memberId];
+    if (!member) return;
+    member.generation = newGeneration;
+    getChildren(memberId).forEach(function (c) {
+      updateGenerations(c.id, newGeneration + 1);
+    });
+  }
+
+  function deleteSubtree(memberId) {
+    getChildren(memberId).forEach(function (c) { deleteSubtree(c.id); });
+    delete data.members[memberId];
+    if (data.rootId === memberId) data.rootId = null;
+  }
+
+  function deleteMember(memberId) {
+    var member = data.members[memberId];
+    if (!member) return;
+    var desc = getSubtreeDepth(memberId) - 1; // depth - 1 = number of descendant levels
+    var childCount = getChildren(memberId).length;
+    if (childCount > 0) {
+      var totalDesc = 0;
+      (function count(id) {
+        getChildren(id).forEach(function (c) { totalDesc++; count(c.id); });
+      }(memberId));
+      if (!confirm('Delete "' + member.name + '" and ' + totalDesc + ' descendant' + (totalDesc === 1 ? '' : 's') + '? This cannot be undone.')) return;
+    }
+    deleteSubtree(memberId);
+    saveToStorage();
+    renderTree();
+  }
+
   function addRootMember(name, profession) {
     var id = generateId();
     data.members[id] = {
@@ -219,10 +285,141 @@
     });
   }
 
+  // ── Drag & drop ──────────────────────────────────────
+  var dragState = { memberId: null, dropType: null, dropTargetId: null };
+
+  function clearDropIndicators() {
+    treeRows.querySelectorAll('[data-drop-target]').forEach(function (el) {
+      delete el.dataset.dropTarget;
+    });
+  }
+
+  function performDrop(draggedId, targetId, dropType) {
+    var dragged = data.members[draggedId];
+    var target  = data.members[targetId];
+    if (!dragged || !target) return;
+
+    if (dropType === 'parent') {
+      // Re-parent: dragged becomes a child of target
+      dragged.parentId = target.id;
+      dragged.order    = getNextOrder(target.id);
+      updateGenerations(draggedId, target.generation + 1);
+    } else {
+      // Sibling reorder (before / after)
+      var siblings = getSiblings(dragged); // sorted by order, includes dragged
+      var draggedIdx = -1, targetIdx = -1;
+      for (var i = 0; i < siblings.length; i++) {
+        if (siblings[i].id === draggedId) draggedIdx = i;
+        if (siblings[i].id === targetId)  targetIdx  = i;
+      }
+      if (draggedIdx === -1 || targetIdx === -1) return;
+
+      var insertAfter = dropType === 'after';
+      var newOrder = [];
+      for (var j = 0; j < siblings.length; j++) {
+        if (siblings[j].id === draggedId) continue;
+        if (siblings[j].id === targetId) {
+          if (!insertAfter) newOrder.push(dragged);
+          newOrder.push(siblings[j]);
+          if (insertAfter)  newOrder.push(dragged);
+        } else {
+          newOrder.push(siblings[j]);
+        }
+      }
+      newOrder.forEach(function (s, idx) { data.members[s.id].order = idx; });
+    }
+
+    saveToStorage();
+    renderTree();
+  }
+
   function createNodeEl(member, isFirst, isLast) {
     var node = document.createElement('div');
     node.className = 'person-node gen-' + member.generation;
     node.dataset.id = member.id;
+
+    // ── Drag source (root is not draggable — it has no parent to move away from) ──
+    if (member.parentId !== null) {
+      node.draggable = true;
+
+      node.addEventListener('dragstart', function (e) {
+        // Don't start drag when clicking a button or active input
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') {
+          e.preventDefault();
+          return;
+        }
+        if (node.querySelector('.inline-edit-input')) { e.preventDefault(); return; }
+        dragState.memberId = member.id;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', member.id); // required for Firefox
+        setTimeout(function () { node.classList.add('dragging'); }, 0);
+      });
+
+      node.addEventListener('dragend', function () {
+        node.classList.remove('dragging');
+        clearDropIndicators();
+        dragState.memberId = null;
+        dragState.dropType = null;
+        dragState.dropTargetId = null;
+      });
+    }
+
+    // ── Drop target ──────────────────────────────────
+    node.addEventListener('dragover', function (e) {
+      if (!dragState.memberId || dragState.memberId === member.id) return;
+      var dragged = data.members[dragState.memberId];
+      if (!dragged) return;
+      // Can't drop onto own descendants
+      if (isDescendantOf(member.id, dragged.id)) return;
+
+      var dropType = null;
+      if (dragged.parentId === member.parentId) {
+        // Same parent → sibling reorder
+        var rect = node.getBoundingClientRect();
+        dropType = e.clientX < rect.left + rect.width / 2 ? 'before' : 'after';
+      } else if (member.id !== dragged.parentId) {
+        // Different parent → re-parent if subtree fits within MAX_GENERATIONS
+        if (member.generation + getSubtreeDepth(dragged.id) <= MAX_GENERATIONS) {
+          dropType = 'parent';
+        }
+      }
+
+      if (dropType) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        clearDropIndicators();
+        node.dataset.dropTarget = dropType;
+        dragState.dropType = dropType;
+        dragState.dropTargetId = member.id;
+      }
+    });
+
+    node.addEventListener('dragleave', function (e) {
+      if (!node.contains(e.relatedTarget)) {
+        delete node.dataset.dropTarget;
+      }
+    });
+
+    node.addEventListener('drop', function (e) {
+      e.preventDefault();
+      if (!dragState.memberId || !dragState.dropType) return;
+      performDrop(dragState.memberId, member.id, dragState.dropType);
+      clearDropIndicators();
+      dragState.memberId = null;
+      dragState.dropType = null;
+      dragState.dropTargetId = null;
+    });
+
+    // ── Delete button ──────────────────────────────────
+    var delBtn = document.createElement('button');
+    delBtn.className = 'delete-btn';
+    delBtn.title = 'Delete ' + member.name;
+    delBtn.innerHTML = '&#x2715;';
+    delBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      deleteMember(member.id);
+    });
+    node.appendChild(delBtn);
 
     // ── Move left / right buttons ──────────────────────
     var moveLeft = document.createElement('button');

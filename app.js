@@ -552,16 +552,17 @@
   }
 
   // ── SVG connectors ───────────────────────────────────
+  // The SVG is position:fixed over the viewport, so we work in viewport coordinates.
+  // This means the lines are always correct regardless of which element scrolls.
   function getRect(el) {
-    var containerRect = treeContainer.getBoundingClientRect();
-    var elRect = el.getBoundingClientRect();
+    var r = el.getBoundingClientRect();
     return {
-      top: elRect.top - containerRect.top + treeContainer.scrollTop,
-      left: elRect.left - containerRect.left + treeContainer.scrollLeft,
-      bottom: elRect.bottom - containerRect.top + treeContainer.scrollTop,
-      right: elRect.right - containerRect.left + treeContainer.scrollLeft,
-      centerX: elRect.left - containerRect.left + treeContainer.scrollLeft + elRect.width / 2,
-      centerY: elRect.top - containerRect.top + treeContainer.scrollTop + elRect.height / 2
+      top:     r.top,
+      left:    r.left,
+      bottom:  r.bottom,
+      right:   r.right,
+      centerX: r.left + r.width  / 2,
+      centerY: r.top  + r.height / 2
     };
   }
 
@@ -577,8 +578,8 @@
 
   function drawConnectors(nodeEls) {
     svg.innerHTML = '';
-    svg.setAttribute('width', treeContainer.scrollWidth);
-    svg.setAttribute('height', treeContainer.scrollHeight);
+    svg.setAttribute('width', window.innerWidth);
+    svg.setAttribute('height', window.innerHeight);
 
     var childrenByParent = {};
     for (var id in data.members) {
@@ -789,6 +790,19 @@
   });
 
   window.addEventListener('resize', redrawConnectors);
+
+  // Redraw on any scroll (window or any scrollable ancestor) so the fixed SVG
+  // always reflects the current viewport positions of the nodes.
+  var scrollRafPending = false;
+  window.addEventListener('scroll', function () {
+    if (!scrollRafPending) {
+      scrollRafPending = true;
+      requestAnimationFrame(function () {
+        scrollRafPending = false;
+        redrawConnectors();
+      });
+    }
+  }, { passive: true });
 
   // ── Boot ─────────────────────────────────────────────
   loadFromStorage();
